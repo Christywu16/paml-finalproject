@@ -48,7 +48,17 @@ def compute_eval_metrics(X, y_true, model, metrics):
     metric_dict = {'precision': -1,
                    'recall': -1,
                    'accuracy': -1}
-    # Add code here
+    predicted = model.predict(X)
+    for metric in metrics:
+        if metric == 'precision':
+            metric_dict[metric] = compute_precision(y_true, predicted)
+        elif metric == 'recall':
+             metric_dict[metric] = compute_recall(y_true, predicted)
+        elif metric == 'accuracy':
+            metric_dict[metric] = compute_accuracy(y_true, predicted)
+        else:
+            continue    
+
     return metric_dict
 
 # Checkpoint 10
@@ -79,7 +89,40 @@ def plot_roc_curve(X_train, X_val, y_train, y_val, trained_models, model_names):
     df = pd.DataFrame()
     threshold_values = np.linspace(0.5, 1, num=100)
 
-    # Add code here
+    for i, model_name in enumerate(model_names):
+        model = trained_models[i]
+        train_proba = model.predict_proba(X_train)
+        val_proba = model.predict_proba(X_val)
+
+        train_precision_all, train_recall_all, val_precision_all, val_recall_all= [], [], [], []
+       
+        for t in threshold_values:
+            train_pred = apply_threshold(train_proba, t)
+            val_pred = apply_threshold(val_proba, t)
+            from collections import Counter
+            print(Counter(train_pred), Counter(y_train))
+            train_precision = precision_score(y_train, train_pred, zero_division=1)
+            train_recall = recall_score(y_train, train_pred)
+            val_precision = precision_score(y_val, val_pred, zero_division=1)
+            val_recall = recall_score(y_val, val_pred)
+
+            train_precision_all.append(train_precision)
+            train_recall_all.append(train_recall)
+            val_precision_all.append(val_precision)
+            val_recall_all.append(val_recall)
+
+        fig.add_trace(go.Scatter(x=train_recall_all, y=train_precision_all, name="Train"), row=i+1, col=1)
+        fig.add_trace(go.Scatter(x=val_recall_all, y=val_precision_all, name="Validation"), row=i+1, col=1)
+        fig.update_xaxes(title_text = "Recall")
+        fig.update_yaxes(title_text = 'Precision', row=i+1, col=1)
+        fig.update_layout(title = model_name+' ROC Curve')
+
+        df[model_name + " Train Precision"] = train_precision_all
+        df[model_name + " Train Recall"] = train_recall_all
+        df[model_name + " Validation Precision"] = val_precision_all
+        df[model_name + " Validation Recall"] = val_recall_all
+
+    
     return fig, df
 
 

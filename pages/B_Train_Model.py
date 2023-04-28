@@ -2,9 +2,10 @@ import numpy as np                      # pip install numpy
 from sklearn.model_selection import train_test_split
 import streamlit as st                  # pip install streamlit
 from sklearn.linear_model import LogisticRegression, SGDClassifier
-from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, RepeatedKFold
 import random
 from helper_functions import fetch_dataset, set_pos_neg_reviews
+
 random.seed(10)
 #############################################
 
@@ -45,13 +46,26 @@ def split_dataset(df, number, target, feature_encoding, random_state=42):
     try:
         # Split dataset into y (target='sentiment') and X (all other features)
         # Add code here
-
+        X, y = df.loc[:, ~df.columns.isin(['sentiment'])], df.loc[:, df.columns.isin(['sentiment'])]
+        
         # Split the train and test sets into X_train, X_val, y_train, y_val using X, y, number/100, and random_state
-        # Add code here
+        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=number/100, random_state=random_state)
+        # print(len(X_train))
+        # print(len(y_train))
 
         # Use the column word_count and tf_idf_word_count as a feature prefix on X_train and X_val sets
-        # Add code here
 
+        if feature_encoding == 'Word Count':
+            prefix = 'word_count_'
+        elif 'TF-IDF' in feature_encoding:
+            prefix = 'tf_idf_word_count_'
+        else:
+            raise ValueError(f"Invalid feature encoding: {feature_encoding}")
+
+        # Select the columns with the specified prefix from X_train and X_val
+        X_train_sentiment = X_train.loc[:, X_train.columns.str.startswith(prefix)]
+        X_val_sentiment = X_val.loc[:, X_val.columns.str.startswith(prefix)]
+        
         # Compute dataset percentages
         train_percentage = (len(X_train) /
                             (len(X_train)+len(X_val)))*100
@@ -66,10 +80,10 @@ def split_dataset(df, number, target, feature_encoding, random_state=42):
                                                                                                                                                           test_percentage))
 
         # (Uncomment code) Save train and test split to st.session_state
-        #st.session_state['X_train'] = X_train_sentiment
-        #st.session_state['X_val'] = X_val_sentiment
-        #st.session_state['y_train'] = y_train
-        #st.session_state['y_val'] = y_val
+        st.session_state['X_train'] = X_train_sentiment
+        st.session_state['X_val'] = X_val_sentiment
+        st.session_state['y_train'] = y_train
+        st.session_state['y_val'] = y_val
     except:
         print('Exception thrown; testing test size to 0')
     return X_train_sentiment, X_val_sentiment, y_train, y_val
@@ -89,7 +103,15 @@ def train_logistic_regression(X_train, y_train, model_name, params, random_state
         - lg_model: the trained model
     """
     lg_model = None
-    # Add code here
+
+    try:
+        lg_model = LogisticRegression(random_state=random_state, max_iter=params['max_iter'], solver=params['solver'], tol=params['tol'], penalty=params['penalty'])
+        lg_model.fit(X_train, np.ravel(y_train))
+        st.session_state[model_name] = lg_model
+    except Exception as e:
+        error_message = f'An error occurred while training the logistic regression model: {e}'
+        st.error(error_message)
+    
     return lg_model
 
 # Checkpoint 6
@@ -106,8 +128,15 @@ def train_sgd_classifer(X_train, y_train, model_name, params, random_state=42):
     Output:
         - ridge_cv: the trained model
     """
+
     sgd_model = None
-    # Add code here
+
+    sgd_model = SGDClassifier(random_state=random_state, loss=params['loss'],
+                              penalty=params['penalty'], alpha=params['alpha'],
+                              max_iter=params['max_iter'], tol=params['tol'])
+    sgd_model.fit(X_train, np.ravel(y_train))
+    st.session_state[model_name] = sgd_model
+
     return sgd_model
 
 # Checkpoint 7
@@ -126,7 +155,17 @@ def train_sgdcv_classifer(X_train, y_train, model_name, params, cv_params, rando
         - sgdcv_model: the trained model
     """
     sgdcv_model = None
-    # Add code here
+
+    kf = RepeatedKFold(n_splits=cv_params['n_splits'], n_repeats=cv_params['n_repeats'], random_state=random_state)
+    sgd_cv_model = GridSearchCV(estimator=SGDClassifier(random_state=random_state),
+                                    param_grid=params, cv=kf)
+
+    sgd_cv_model.fit(X_train, np.ravel(y_train))
+
+    st.session_state['cv_results_'] = sgd_cv_model.cv_results_
+    st.session_state[model_name] = sgd_cv_model.best_estimator_
+    sgdcv_model = sgd_cv_model.best_estimator_
+
     return sgdcv_model
 
 # Checkpoint 8
@@ -148,6 +187,23 @@ def inspect_coefficients(trained_models):
                 'Stochastic Gradient Descent with Logistic Regression': [],
                 'Stochastic Gradient Descent with Cross Validation': []}
     # Add code here
+    for name, model in trained_models.items():
+        if model is not None:
+            out_dict[name] = model.coef_
+            st.write(f"{name} coefficients:")
+            st.write(model.coef_)
+
+            total_coef = model.coef_.size
+            pos_coef, neg_coef = (model.coef_ > 0).sum(), (model.coef_ < 0).sum()
+            st.write(f"Total number of coefficients: {total_coef}")
+            st.write(f"Number of positive coefficients: {pos_coef}")
+            st.write(f"Number of negative coefficients: {neg_coef}")
+
+    # Display ‘cv_results_’ in st.session_state['cv_results_'] if it exists (from Checkpoint 7)
+    if 'cv_results_' in st.session_state:
+        st.write("Cross-validation result is :")
+        st.write(st.session_state['cv_results_'])
+
     return out_dict
 
 

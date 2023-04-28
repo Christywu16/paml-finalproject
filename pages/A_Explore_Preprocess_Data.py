@@ -30,17 +30,26 @@ def remove_punctuation(df, features):
     Output: 
         - df: dataframe with updated feature with removed punctuation
     """
-    # check if the feature contains string or not
-    # Add code here
+    translator = str.maketrans('', '', string.punctuation)
+    for feature in features: 
+        # check if the feature contains string or not
+        # if df[feature].dtype == 'object':
+        #     df[feature] = df[feature].translate(translator, string.punctuation)
+        if df[feature].dtype != 'object':
+            return df
 
-    # applying translate method eliminating punctuations
-    # Add code here
+        # Remove punctuation from strings in the feature
+        #df[feature] = df[feature].translate(translator, string.punctuation)
+        df[feature] = df[feature].apply(lambda x: x.translate(translator))
+            
+        # applying translate method eliminating punctuations
+        
 
     # (Uncomment code) Store new features in st.session_state
     st.session_state['data'] = df
 
     # (Uncomment code) Confirmation statement
-    #st.write('Punctuation was removed from {}'.format(features))
+    st.write('Punctuation was removed from {}'.format(features))
     return df
 
 # Checkpoint 2
@@ -56,18 +65,32 @@ def word_count_encoder(df, feature, word_encoder):
         - df: dataframe with word count feature
     """
     # Add code here
+    count_vect = CountVectorizer()
+    word_counts = count_vect.fit_transform(df[feature])
+    #print(X_train_tfidf.shape)
+    word_count_df = pd.DataFrame(word_counts.toarray())
+    word_count_df = word_count_df.add_prefix('word_count_')
+
+    # Concatenate the word count dataframe with original dataframe
+    df = pd.concat([df, word_count_df], axis=1)
+    
+        
+       
+    #df['{}_word_count'.format(f)] = count.toarray().sum(axis=1)
+    
+
 
     # (Uncomment code) Show confirmation statement
-    #st.write('Feature {} has been word count encoded from {} reviews.'.format(
-    #    feature, len(word_count_df)))
+    st.write('Feature {} has been word count encoded from {} reviews.'.format(
+       feature, len(word_count_df)))
 
     # (Uncomment code) Store new features in st.session_state
-    #st.session_state['data'] = df
+    st.session_state['data'] = df
 
     # (Uncomment code) Save variables for restoring state
-    #word_encoder.append('Word Count')
-    #st.session_state['word_encoder'] = word_encoder
-    #st.session_state['count_vect'] = count_vect
+    word_encoder.append('Word Count')
+    st.session_state['word_encoder'] = word_encoder
+    st.session_state['count_vect'] = count_vect
 
     return df
 
@@ -84,19 +107,28 @@ def tf_idf_encoder(df, feature, word_encoder):
         - df: dataframe with tf-idf encoded feature
     """
     # Add code here
+    count_vect = CountVectorizer()
+    tfidf_transformer = TfidfTransformer()
+
+    freq_counts = count_vect.fit_transform(df[feature])
+    tfidf_features = tfidf_transformer.fit_transform(freq_counts)
+    word_count_df = pd.DataFrame(tfidf_features.toarray())
+    word_count_df = word_count_df.add_prefix('tf_idf_word_count_')
+    df = pd.concat([df, word_count_df], axis=1)
+
 
     # (Uncomment code) Show confirmation statement
-    #st.write(
-    #    'Feature {} has been TF-IDF encoded from {} reviews.'.format(feature, len(word_count_df)))
+    st.write(
+       'Feature {} has been TF-IDF encoded from {} reviews.'.format(feature, len(word_count_df)))
 
     # (Uncomment code) Store new features in st.session_state
-    #st.session_state['data'] = df
+    st.session_state['data'] = df
 
     # (Uncomment code) Save variables for restoring state
-    #word_encoder.append('TF-IDF')
-    #st.session_state['word_encoder'] = word_encoder
-    #st.session_state['count_vect'] = count_vect
-    #st.session_state['tfidf_transformer'] = tfidf_transformer
+    word_encoder.append('TF-IDF')
+    st.session_state['word_encoder'] = word_encoder
+    st.session_state['count_vect'] = count_vect
+    st.session_state['tfidf_transformer'] = tfidf_transformer
     return df
 
 ###################### FETCH DATASET #######################
